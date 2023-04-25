@@ -1,0 +1,267 @@
+piVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: acm-quota-policy
+  namespace: policies
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: acm-quota-config-policy
+        spec:
+          namespaceSelector:
+            exclude:
+              - kube-*
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: config.openshift.io/v1
+                kind: Project
+                metadata:
+                  name: cluster
+                  annotations:
+                    include.release.openshift.io/ibm-cloud-managed: "true"
+                    include.release.openshift.io/self-managed-high-availability: "true"
+                    include.release.openshift.io/single-node-developer: "true"
+                    release.openshift.io/create-only: "true"
+                  creationTimestamp: 2022-07-25T12:46:24Z
+                  generation: 1
+                  managedFields:
+                  ownerReferences:
+                    - name: version
+                      apiVersion: config.openshift.io/v1
+                      kind: ClusterVersion
+                      uid: 9d88dfaf-9c73-434e-b301-2d924d4e34a5
+                  resourceVersion: "1922"
+                  uid: 8976e49f-c9c7-48fb-aef9-79e7d627f2d0
+                spec:
+                  projectRequestTemplate:
+                    name: small-project-request
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: template.openshift.io/v1
+                kind: Template
+                metadata:
+                  name: small-project-request
+                  namespace: openshift-config
+                  creationTimestamp:
+                objects:
+                  - apiVersion: project.openshift.io/v1
+                    kind: Project
+                    metadata:
+                      name: ${PROJECT_NAME}
+                      annotations:
+                        costcenter: ${PROJECT_COSTCENTER}
+                        narid: ${PROJECT_NARID}
+                        openshift.io/description: ${PROJECT_DESCRIPTION}
+                        openshift.io/display-name: ${PROJECT_DISPLAYNAME}
+                        openshift.io/requester: ${PROJECT_REQUESTING_USER}
+                      creationTimestamp:
+                    spec: {}
+                    status: {}
+                  - apiVersion: v1
+                    kind: ResourceQuota
+                    metadata:
+                      name: ${PROJECT_NAME}-quota
+                    spec:
+                      hard:
+                        memory: ${PROJECT_MEMORY_QUOTA}
+                        persistentvolumeclaims: "10"
+                        pods: "50"
+                  - apiVersion: v1
+                    kind: ResourceQuota
+                    metadata:
+                      name: ${PROJECT_NAME}-terminating-quota
+                    spec:
+                      hard:
+                        memory: ${PROJECT_MEMORY_QUOTA}
+                      scopes:
+                        - Terminating
+                  - apiVersion: v1
+                    kind: ResourceQuota
+                    metadata:
+                      name: ${PROJECT_NAME}-running-quota
+                    spec:
+                      hard:
+                        limits.memory: ${PROJECT_MEMORY_QUOTA}
+                        memory: ${PROJECT_MEMORY_QUOTA}
+                      scopes:
+                        - NotTerminating
+                  - apiVersion: v1
+                    kind: LimitRange
+                    metadata:
+                      name: ${PROJECT_NAME}-limits
+                    spec:
+                      limits:
+                        - max:
+                            memory: 4Gi
+                          min:
+                            memory: 10Mi
+                          type: Pod
+                        - default:
+                            memory: 1Gi
+                          defaultRequest:
+                            memory: 50Mi
+                          max:
+                            memory: 4Gi
+                          min:
+                            memory: 10Mi
+                          type: Container
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: Role
+                    metadata:
+                      name: prom-label-proxy-client
+                      namespace: ${PROJECT_NAME}
+                    rules:
+                      - apiGroups:
+                          - ""
+                        attributeRestrictions:
+                        resources:
+                          - node/metrics
+                        verbs:
+                          - get
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: RoleBinding
+                    metadata:
+                      name: prom-label-proxy-client
+                      namespace: ${PROJECT_NAME}
+                    roleRef:
+                      name: prom-label-proxy-client
+                      namespace: ${PROJECT_NAME}
+                      kind: Role
+                    subjects:
+                      - name: default
+                        kind: ServiceAccount
+                      - name: sa-view
+                        kind: ServiceAccount
+                      - name: sa-edit
+                        kind: ServiceAccount
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: RoleBinding
+                    metadata:
+                      name: system:image-pullers
+                      namespace: ${PROJECT_NAME}
+                      annotations:
+                        openshift.io/description: Allows all pods in this namespace to pull images from
+                          this namespace.  It is auto-managed by a controller;
+                          remove subjects to disable.
+                      creationTimestamp:
+                    roleRef:
+                      name: system:image-puller
+                      apiGroup: rbac.authorization.k8s.io
+                      kind: ClusterRole
+                    subjects:
+                      - name: system:serviceaccounts:${PROJECT_NAME}
+                        apiGroup: rbac.authorization.k8s.io
+                        kind: Group
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: RoleBinding
+                    metadata:
+                      name: system:image-builders
+                      namespace: ${PROJECT_NAME}
+                      annotations:
+                        openshift.io/description: Allows builds in this namespace to push images to this
+                          namespace.  It is auto-managed by a controller; remove
+                          subjects to disable.
+                      creationTimestamp:
+                    roleRef:
+                      name: system:image-builder
+                      apiGroup: rbac.authorization.k8s.io
+                      kind: ClusterRole
+                    subjects:
+                      - name: builder
+                        namespace: ${PROJECT_NAME}
+                        kind: ServiceAccount
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: RoleBinding
+                    metadata:
+                      name: system:deployers
+                      namespace: ${PROJECT_NAME}
+                      annotations:
+                        openshift.io/description: Allows deploymentconfigs in this namespace to rollout
+                          pods in this namespace.  It is auto-managed by a
+                          controller; remove subjects to disable.
+                      creationTimestamp:
+                    roleRef:
+                      name: system:deployer
+                      apiGroup: rbac.authorization.k8s.io
+                      kind: ClusterRole
+                    subjects:
+                      - name: deployer
+                        namespace: ${PROJECT_NAME}
+                        kind: ServiceAccount
+                  - apiVersion: rbac.authorization.k8s.io/v1
+                    kind: RoleBinding
+                    metadata:
+                      name: admin
+                      namespace: ${PROJECT_NAME}
+                      creationTimestamp:
+                    roleRef:
+                      name: admin
+                      apiGroup: rbac.authorization.k8s.io
+                      kind: ClusterRole
+                    subjects:
+                      - name: ${PROJECT_ADMIN_USER}
+                        apiGroup: rbac.authorization.k8s.io
+                        kind: User
+                  - apiVersion: v1
+                    kind: RoleBinding
+                    metadata:
+                      name: view
+                      namespace: ${PROJECT_NAME}
+                      creationTimestamp:
+                    roleRef:
+                      name: view
+                      kind: ClusterRole
+                    subjects:
+                      - name: sa-view
+                        kind: ServiceAccount
+                    userNames:
+                      - system:serviceaccount:${PROJECT_NAME}:sa-view
+                  - apiVersion: v1
+                    kind: RoleBinding
+                    metadata:
+                      name: edit
+                      namespace: ${PROJECT_NAME}
+                      creationTimestamp:
+                    roleRef:
+                      name: edit
+                      kind: ClusterRole
+                    subjects:
+                      - name: sa-edit
+                        kind: ServiceAccount
+                    userNames:
+                      - system:serviceaccount:${PROJECT_NAME}:sa-edit
+                  - apiVersion: v1
+                    kind: ServiceAccount
+                    metadata:
+                      name: sa-edit
+                      creationTimestamp:
+                  - apiVersion: v1
+                    kind: ServiceAccount
+                    metadata:
+                      name: sa-view
+                      creationTimestamp:
+                parameters:
+                  - name: PROJECT_NAME
+                  - name: PROJECT_COSTCENTER
+                    value: "840038211"
+                  - name: PROJECT_NARID
+                    value: 156822-1
+                  - name: PROJECT_DISPLAYNAME
+                  - name: PROJECT_DESCRIPTION
+                  - name: PROJECT_ADMIN_USER
+                  - name: PROJECT_REQUESTING_USER
+                  - name: PROJECT_MEMORY_QUOTA
+                    value: 16Gi
+          pruneObjectBehavior: DeleteIfCreated
+          remediationAction: enforce
+          severity: medium
+  remediationAction: enforce

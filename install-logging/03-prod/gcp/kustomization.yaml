@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+  
+bases:
+  - ../../base
+patches:
+  - path: gcp-install-logging.yaml 
+    target:
+      kind: Policy
+  - path: gcp-placement-rule.yaml
+    target:
+      kind: PlacementRule 
+
+  

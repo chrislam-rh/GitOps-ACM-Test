@@ -1,0 +1,87 @@
+# replace the storageClass to the gcp one
+- op: replace
+  path: /spec/policy-templates/0/objectDefinition/spec/object-templates/6/objectDefinition/spec/logStore/elasticsearch/storage/storageClassName
+  value: default
+
+# replace the existing pipeline with 2 pipelines, one for gcp logging and one for local
+- op: replace
+  path: /spec/policy-templates/0/objectDefinition/spec/object-templates/7
+  value: 
+      complianceType: musthave
+      objectDefinition:
+        apiVersion: logging.openshift.io/v1
+        kind: ClusterLogForwarder
+        metadata:
+          name: instance
+          namespace: openshift-logging
+        spec:
+          outputs:
+            - name: gcp-log
+              googleCloudLogging:
+                logId: '{{  (lookup "config.openshift.io/v1" "Infrastructure" ""
+                  "cluster").status.infrastructureName }}'
+                projectId: '{{  (lookup "config.openshift.io/v1" "Infrastructure" ""
+                  "cluster").status.platformStatus.gcp.projectID }}'
+              secret:
+                name: gcp-credentials-logging-forwarder
+              type: googleCloudLogging
+          pipelines:
+            - name: google-cloud-logging 
+              inputRefs:
+                - infrastructure
+                - application
+                - audit
+              outputRefs:
+                - gcp-log
+            - name: all-to-default
+              inputRefs:
+                - infrastructure
+                - application
+              outputRefs:
+                - default
+# create service account for gcp logging from CCO
+- op: add
+  path: /spec/policy-templates/0/objectDefinition/spec/object-templates/-
+  value:
+      complianceType: musthave
+      objectDefinition:
+        apiVersion: cloudcredential.openshift.io/v1
+        kind: CredentialsRequest
+        metadata:
+          name: gcp-credentials-logging
+          namespace: openshift-cloud-credential-operator
+        spec:
+          providerSpec:
+            apiVersion: cloudcredential.openshift.io/v1
+            kind: GCPProviderSpec
+            predefinedRoles:
+              - roles/logging.logWriter
+          secretRef:
+            name: gcp-credentials-logging
+            namespace: openshift-logging
+
+# create the secret for gcp logging
+- op: add
+  path: /spec/policy-templates/-
+  value:
+      objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: install-openshift-elasticsearch-vector-secret
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  google-application-credentials.json: '{{ fromSecret "openshift-logging"
+                    "gcp-credentials-logging" "service_account.json" }}'
+                kind: Secret
+                metadata:
+                  name: gcp-credentials-logging-forwarder
+                  namespace: openshift-logging
+              type: Opaque
+          remediationAction: enforce
+          severity: low
+

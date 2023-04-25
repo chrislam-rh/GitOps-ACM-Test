@@ -1,0 +1,21 @@
+apiVersion: apps.open-cluster-management.io/v1
+kind: PlacementRule
+metadata:
+  name: acm-quota-policy-placement
+  namespace: policies
+spec:
+  clusterSelector:
+    matchExpressions:
+      - key: vendor
+        operator: In
+        values:
+          - OpenShift
+      - key: openshiftVersion
+        operator: NotIn
+        values:
+          - 4.10.9
+      - key: name
+        operator: NotIn
+        values:
+          - ukgcpd5
+          - local-cluster

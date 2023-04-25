@@ -1,0 +1,12 @@
+# change the name to an onprem policy name
+- op: replace
+  path: /metadata/name
+  value: install-logging-onprem
+
+- op: replace
+  path: /spec/policy-templates/0/objectDefinition/metadata/name
+  value: install-logging-onprem
+# replace storageClass with the default vSphere one
+- op: replace 
+  path: /spec/policy-templates/0/objectDefinition/spec/object-templates/6/objectDefinition/spec/logStore/elasticsearch/storage/storageClassName
+  value: thin 

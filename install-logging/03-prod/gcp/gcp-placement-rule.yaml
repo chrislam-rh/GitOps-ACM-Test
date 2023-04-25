@@ -1,0 +1,5 @@
+# replace the storageClass to the gcp one
+- op: replace
+  path: /spec/clusterSelector/matchExpressions/0/values/0
+  value: Google
+
